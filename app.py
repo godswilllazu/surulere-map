@@ -142,24 +142,37 @@ def get_buffer():
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
-# 4. GET ALL LCDA BOUNDARIES
+# 4. GET ALL LCDA BOUNDARIES (Optimized)
 # ---------------------------------------------------------
 @app.route('/api/lcdas', methods=['GET'])
 def get_lcdas():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    query = """
-        SELECT json_build_object(
-            'type', 'FeatureCollection',
-            'features', json_agg(ST_AsGeoJSON(t.*)::json)
-        )
-        FROM (SELECT name, geom FROM lcda_polygons) AS t;
-    """
-    cur.execute(query)
-    result = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-    return jsonify(result if result else {"type": "FeatureCollection", "features": []})
+    try:
+        conn = get_db_connection()
+        if not conn: return jsonify({"features": []})
+        cur = conn.cursor()
+        
+        # 🛠️ FIX: Use ST_Simplify(geom, 0.0001) to reduce size
+        query = """
+            SELECT json_build_object(
+                'type', 'FeatureCollection',
+                'features', json_agg(
+                    json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.0001), 5)::json,
+                        'properties', json_build_object('name', name)
+                    )
+                )
+            )
+            FROM lcda_polygons;
+        """
+        cur.execute(query)
+        result = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return jsonify(result if result else {"type": "FeatureCollection", "features": []})
+    except Exception as e:
+        print(f"LCDA Error: {e}")
+        return jsonify({"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
 # 5. GET ROAD NETWORK (OPTIMIZED for Speed & Memory)
@@ -200,24 +213,37 @@ def get_roads_layer():
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
-# 6. GET PROJECT BOUNDARY
+# 6. GET PROJECT BOUNDARY (Optimized)
 # ---------------------------------------------------------
 @app.route('/api/boundary', methods=['GET'])
 def get_boundary():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    query = """
-        SELECT json_build_object(
-            'type', 'FeatureCollection',
-            'features', json_agg(ST_AsGeoJSON(t.*)::json)
-        )
-        FROM (SELECT * FROM boundary) AS t;
-    """
-    cur.execute(query)
-    result = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-    return jsonify(result if result else {"type": "FeatureCollection", "features": []})
+    try:
+        conn = get_db_connection()
+        if not conn: return jsonify({"features": []})
+        cur = conn.cursor()
+        
+        # 🛠️ FIX: Use ST_Simplify(geom, 0.0001) here too
+        query = """
+            SELECT json_build_object(
+                'type', 'FeatureCollection',
+                'features', json_agg(
+                    json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.0001), 5)::json,
+                        'properties', json_build_object('name', 'Project Boundary')
+                    )
+                )
+            )
+            FROM boundary;
+        """
+        cur.execute(query)
+        result = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return jsonify(result if result else {"type": "FeatureCollection", "features": []})
+    except Exception as e:
+        print(f"Boundary Error: {e}")
+        return jsonify({"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
 # 7. GLOBAL SEARCH (Fixed Column Name)
@@ -491,3 +517,4 @@ if __name__ == '__main__':
     # Use PORT from Render env, fallback to 5000 for local
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
