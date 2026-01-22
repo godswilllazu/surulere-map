@@ -83,12 +83,13 @@ def get_route():
     end_node = cur.fetchone()[0]
 
     # Dijkstra Routing
+    # 🛠️ FIX: Changed 'r.roadname' to 'r."ROADNAME"'
     sql_route = f"""
         SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(row.*)::json)
         ) FROM (
-            SELECT r.id, r.ROADNAME AS name, r.geom 
+            SELECT r.id, COALESCE(r."ROADNAME", 'Unnamed Road') AS name, r.geom 
             FROM pgr_dijkstra(
                 'SELECT id, source, target, cost, reverse_cost FROM roads',
                 {start_node}, {end_node}, directed := false
@@ -164,6 +165,7 @@ def get_roads_layer():
     conn = get_db_connection()
     cur = conn.cursor()
     # Optimized geometry for faster loading
+    # 🛠️ FIX: Changed 'roadname' to 'COALESCE("ROADNAME", 'Unknown')'
     query = """
         SELECT json_build_object(
             'type', 'FeatureCollection',
@@ -171,7 +173,7 @@ def get_roads_layer():
                 json_build_object(
                     'type', 'Feature',
                     'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.00005), 5)::json,
-                    'properties', json_build_object('name', ROADNAME)
+                    'properties', json_build_object('name', COALESCE("ROADNAME", 'Unknown Road'))
                 )
             )
         )
@@ -215,12 +217,13 @@ def search_all():
     conn = get_db_connection()
     cur = conn.cursor()
     
+    # 🛠️ FIX: Changed 'roadname' to '"ROADNAME"'
     sql = """
         SELECT name, category, ST_X(ST_Centroid(geom)) as lng, ST_Y(ST_Centroid(geom)) as lat
         FROM (
             SELECT name, category, geom FROM point_features WHERE name ILIKE %s
             UNION ALL
-            SELECT ROADNAME as name, 'Road' as category, geom FROM roads WHERE ROADNAME ILIKE %s
+            SELECT "ROADNAME" as name, 'Road' as category, geom FROM roads WHERE "ROADNAME" ILIKE %s
             UNION ALL
             SELECT name, 'District' as category, geom FROM lcda_polygons WHERE name ILIKE %s
         ) as combined_results
@@ -437,8 +440,9 @@ def get_lcda_stats(lcda_name):
     longest_road_len = round(road_data[1]) if road_data[1] else 0
 
     # 3. Longest Road Name
+    # 🛠️ FIX: Changed 'r.roadname' to 'r."ROADNAME"'
     sql_longest_name = """
-        SELECT r.ROADNAME 
+        SELECT r."ROADNAME" 
         FROM roads r, lcda_polygons l 
         WHERE l.name = %s AND ST_Intersects(r.geom, l.geom) 
         ORDER BY ST_Length(r.geom::geography) DESC LIMIT 1
