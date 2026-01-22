@@ -88,7 +88,7 @@ def get_route():
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(row.*)::json)
         ) FROM (
-            SELECT r.id, r.roadname AS name, r.geom 
+            SELECT r.id, r.name AS name, r.geom 
             FROM pgr_dijkstra(
                 'SELECT id, source, target, cost, reverse_cost FROM roads',
                 {start_node}, {end_node}, directed := false
@@ -246,7 +246,7 @@ def search_all():
         FROM (
             SELECT name, category, geom FROM point_features WHERE name ILIKE %s
             UNION ALL
-            SELECT roadname as name, 'Road' as category, geom FROM roads WHERE roadname ILIKE %s
+            SELECT name as name, 'Road' as category, geom FROM roads WHERE name ILIKE %s
             UNION ALL
             SELECT name, 'District' as category, geom FROM lcda_polygons WHERE name ILIKE %s
         ) as combined_results
@@ -464,7 +464,7 @@ def get_lcda_stats(lcda_name):
 
     # 3. Longest Road Name
     sql_longest_name = """
-        SELECT r.roadname 
+        SELECT r.name 
         FROM roads r, lcda_polygons l 
         WHERE l.name = %s AND ST_Intersects(r.geom, l.geom) 
         ORDER BY ST_Length(r.geom::geography) DESC LIMIT 1
@@ -507,3 +507,4 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
 
     app.run(host='0.0.0.0', port=port)
+
