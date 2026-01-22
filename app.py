@@ -88,7 +88,7 @@ def get_route():
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(row.*)::json)
         ) FROM (
-            SELECT r.id, r.name AS name, r.geom 
+            SELECT r.id, r.ROADNAME AS name, r.geom 
             FROM pgr_dijkstra(
                 'SELECT id, source, target, cost, reverse_cost FROM roads',
                 {start_node}, {end_node}, directed := false
@@ -163,51 +163,25 @@ def get_lcdas():
 def get_roads_layer():
     conn = get_db_connection()
     cur = conn.cursor()
-    
-    # 🛠️ UPDATED QUERY:
-    # We use COALESCE(name, 'Unknown Road') so it doesn't crash if the name is missing.
-    # We check if the column is 'name' or 'road_name'. Assuming 'name' based on standard shapefiles.
+    # Optimized geometry for faster loading
     query = """
         SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(
                 json_build_object(
                     'type', 'Feature',
-                    'geometry', ST_AsGeoJSON(geom)::json,
-                    'properties', json_build_object(
-                        'name', COALESCE(name, 'Unknown Road') 
-                    )
+                    'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.00005), 5)::json,
+                    'properties', json_build_object('name', ROADNAME)
                 )
             )
         )
         FROM roads;
     """
-    
-    try:
-        cur.execute(query)
-        data = cur.fetchone()[0]
-    except Exception as e:
-        # Fallback: If 'name' also fails, just return generic labels
-        conn.rollback()
-        query_fallback = """
-        SELECT json_build_object(
-            'type', 'FeatureCollection',
-            'features', json_agg(
-                json_build_object(
-                    'type', 'Feature',
-                    'geometry', ST_AsGeoJSON(geom)::json,
-                    'properties', json_build_object('name', 'Road')
-                )
-            )
-        )
-        FROM roads;
-        """
-        cur.execute(query_fallback)
-        data = cur.fetchone()[0]
-
+    cur.execute(query)
+    result = cur.fetchone()[0]
     cur.close()
     conn.close()
-    return jsonify(data)
+    return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
 # 6. GET PROJECT BOUNDARY
@@ -246,7 +220,7 @@ def search_all():
         FROM (
             SELECT name, category, geom FROM point_features WHERE name ILIKE %s
             UNION ALL
-            SELECT name as name, 'Road' as category, geom FROM roads WHERE name ILIKE %s
+            SELECT ROADNAME as name, 'Road' as category, geom FROM roads WHERE ROADNAME ILIKE %s
             UNION ALL
             SELECT name, 'District' as category, geom FROM lcda_polygons WHERE name ILIKE %s
         ) as combined_results
@@ -464,7 +438,7 @@ def get_lcda_stats(lcda_name):
 
     # 3. Longest Road Name
     sql_longest_name = """
-        SELECT r.name 
+        SELECT r.ROADNAME 
         FROM roads r, lcda_polygons l 
         WHERE l.name = %s AND ST_Intersects(r.geom, l.geom) 
         ORDER BY ST_Length(r.geom::geography) DESC LIMIT 1
@@ -505,6 +479,4 @@ def get_lcda_stats(lcda_name):
 if __name__ == '__main__':
     # Render uses the PORT environment variable
     port = int(os.environ.get("PORT", 5000))
-
     app.run(host='0.0.0.0', port=port)
-
