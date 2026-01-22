@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surulere Spatial Intelligence</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+    !function(){"use strict";function t(i){return this instanceof t?(this._canvas=i="string"==typeof i?document.getElementById(i):i,this._ctx=i.getContext("2d"),this._width=i.width,this._height=i.height,this._max=1,void(this._data=[])):new t(i)}t.prototype={defaultRadius:25,defaultGradient:{.4:"blue",.6:"cyan",.7:"lime",.8:"yellow",1:"red"},data:function(t){return this._data=t,this},max:function(t){return this._max=t,this},add:function(t){return this._data.push(t),this},clear:function(){return this._data=[],this},radius:function(t,i){i=i||15;var a=this._circle=this._circle||document.createElement("canvas"),s=a.getContext("2d"),e=this._r=t+i;return a.width=a.height=2*e,s.shadowOffsetX=s.shadowOffsetY=e,s.shadowBlur=i,s.shadowColor="black",s.beginPath(),s.arc(-e,-e,t,0,2*Math.PI,!0),s.closePath(),s.fill(),this},resize:function(){this._width=this._canvas.width,this._height=this._canvas.height},gradient:function(t){var i=document.createElement("canvas"),a=i.getContext("2d"),s=i.width=256,e=i.height=1;for(var n in t)a.fillStyle=t[n],a.fillRect(n*s,0,1,1);return this._grad=a.getImageData(0,0,s,1).data,this},draw:function(t){this._circle||this.radius(this.defaultRadius),this._grad||this.gradient(this.defaultGradient);var i=this._ctx;i.clearRect(0,0,this._width,this._height);for(var a,s=0,e=this._data.length;e>s;s++)a=this._data[s],i.globalAlpha=Math.max(a[2]/this._max,t||.05),i.drawImage(this._circle,a[0]-this._r,a[1]-this._r);var n=i.getImageData(0,0,this._width,this._height);return this._colorize(n.data,this._grad),i.putImageData(n,0,0),this},_colorize:function(t,i){for(var a,s=0,e=t.length;e>s;s+=4)(a=4*t[s+3])&&(t[s]=i[a],t[s+1]=i[a+1],t[s+2]=i[a+2])}},window.simpleheat=t}(),L.HeatLayer=(L.Layer?L.Layer:L.Class).extend({initialize:function(t,i){this._latlngs=t,L.setOptions(this,i)},setLatLngs:function(t){return this._latlngs=t,this.redraw()},addLatLng:function(t){return this._latlngs.push(t),this.redraw()},setOptions:function(t){return L.setOptions(this,t),this._heat&&this._updateOptions(),this.redraw()},redraw:function(){return!this._heat||this._frame||this._map._animating||(this._frame=L.Util.requestAnimFrame(this._redraw,this)),this},onAdd:function(t){this._map=t,this._canvas||this._initCanvas(),t._panes.overlayPane.appendChild(this._canvas),t.on("moveend",this._reset,this),t.options.zoomAnimation&&L.Browser.any3d&&t.on("zoomanim",this._animateZoom,this),this._reset()},onRemove:function(t){t.getPanes().overlayPane.removeChild(this._canvas),t.off("moveend",this._reset,this),t.options.zoomAnimation&&t.off("zoomanim",this._animateZoom,this)},addTo:function(t){return t.addLayer(this),this},_initCanvas:function(){var t=this._canvas=L.DomUtil.create("canvas","leaflet-heatmap-layer leaflet-layer"),i=L.DomUtil.testProp(["transformOrigin","WebkitTransformOrigin","msTransformOrigin"]);t.style[i]="50% 50%";var a=this._map.getSize();t.width=a.x,t.height=a.y;var s=this._map.options.zoomAnimation&&L.Browser.any3d;L.DomUtil.addClass(t,"leaflet-zoom-"+(s?"animated":"hide")),this._heat=simpleheat(t),this._updateOptions()},_updateOptions:function(){this._heat.radius(this.options.radius||25,this.options.blur),this.options.gradient&&this._heat.gradient(this.options.gradient),this.options.max&&this._heat.max(this.options.max)},_reset:function(){var t=this._map.containerPointToLayerPoint([0,0]);L.DomUtil.setPosition(this._canvas,t);var i=this._map.getSize();this._heat._width!==i.x&&(this._canvas.width=this._heat._width=i.x),this._heat._height!==i.y&&(this._canvas.height=this._heat._height=i.y),this._redraw()},_redraw:function(){if(this._map){var t,i,a,s,e,n,h,o,r,d=this._map.getBounds(),l=this._map.options.zoom===this._map.getZoom(),_=(this.options.maxZoom,this._map.getZoom()>this.options.maxZoom?.05:1),m=this.options.max||1,c=this._latlngs,u=[];for(t=0,i=c.length;i>t;t++)if(a=c[t],s=a[0],e=a[1],n=a.alt,h=this._map.latLngToContainerPoint(a),l&&d.contains(a)){o=Math.floor(1e3*(h.x-window.pageXOffset))/1e3,r=Math.floor(1e3*(h.y-window.pageYOffset))/1e3,u.push([o,r,Math.min(n||m,m)*_])}this._heat.data(u).draw(this.options.minOpacity),this._frame=null}},_animateZoom:function(t){var i=this._map.getZoomScale(t.zoom),a=this._map._getCenterOffset(t.center)._multiplyBy(-i).subtract(this._map._getMapPanePos());L.DomUtil.setTransform?L.DomUtil.setTransform(this._canvas,a,i):this._canvas.style[L.DomUtil.TRANSFORM]=L.DomUtil.getTranslateString(a)+" scale("+i+")"}}),L.heatLayer=function(t,i){return new L.HeatLayer(t,i)};
+    </script>
+
+    <style>
+        :root {
+            --bg-glass: rgba(255, 255, 255, 0.95);
+            --text-color: #2c3e50;
+            --accent: #3498db;
+            --danger: #e74c3c;
+            --success: #27ae60;
+            --purple: #9b59b6;
+            --info: #e67e22; /* Orange/Blue for Info */
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        [data-theme="dark"] {
+            --bg-glass: rgba(30, 30, 30, 0.95);
+            --text-color: #ecf0f1;
+            --accent: #00cec9;
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* 🛠️ RESTORED ZOOM: 100% */
+        body { margin: 0; font-family: 'Inter', sans-serif; overflow: hidden; zoom: 100%; }
+        #map { height: 100vh; width: 100%; transition: filter 0.5s ease; }
+
+        .glass-panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        /* --- DASHBOARD MODAL --- */
+        #dashboard-modal {
+            display: none;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 500px; max-height: 80vh; z-index: 3000;
+            padding: 25px; overflow-y: auto;
+        }
+        .stat-card {
+            background: rgba(0,0,0,0.03); border-radius: 8px; padding: 15px;
+            margin-bottom: 15px; border: 1px solid rgba(0,0,0,0.05); text-align: center;
+        }
+        .stat-value { font-size: 24px; font-weight: bold; color: var(--accent); }
+        .stat-label { font-size: 12px; opacity: 0.7; text-transform: uppercase; }
+        
+        .bar-container { display: flex; align-items: center; margin-bottom: 8px; font-size: 13px; }
+        .bar-label { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bar-track { flex-grow: 1; background: rgba(0,0,0,0.1); height: 8px; border-radius: 4px; margin: 0 10px; }
+        .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; width: 0%; transition: width 1s; }
+        .bar-count { width: 30px; text-align: right; font-weight: bold; }
+
+        /* 🛠️ FIX 2: Force Close Button to the very top */
+       /* 🛠️ UPDATED CLOSE BUTTON STYLE */
+        .close-btn { 
+            position: absolute; 
+            top: 10px; 
+            right: 15px; 
+            width: 35px; 
+            height: 35px; 
+            background: #ff4757; /* Red background to ensure visibility */
+            color: white; 
+            border-radius: 50%; 
+            text-align: center; 
+            line-height: 35px; /* Vertically centers the X */
+            font-size: 20px; 
+            cursor: pointer; 
+            z-index: 20000 !important; /* Forces it above EVERYTHING */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .close-btn:hover { 
+            background: #c0392b; 
+            transform: scale(1.1); 
+        }
+
+        /* 🛠️ RESTORED SIDEBAR HEIGHT: 83vh */
+        #sidebar { position: absolute; top: 20px; left: 20px; width: 300px; padding: 20px; z-index: 1000; max-height: 83vh; overflow-y: auto; }
+        #analysis-panel { position: absolute; top: 80px; right: 20px; width: 260px; padding: 20px; z-index: 1000; max-height: 80vh; overflow-y: auto; }
+        
+        /* --- WIDGETS --- */
+        #theme-toggle { position: absolute; top: 20px; right: 20px; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1000; cursor: pointer; font-size: 18px; }
+        #north-arrow { position: absolute; top: 20px; right: 80px; width: 40px; height: 40px; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; font-size: 10px; pointer-events: none; }
+        #coords-box { position: absolute; bottom: 20px; left: 20px; padding: 8px 15px; font-family: monospace; font-size: 12px; z-index: 1000; pointer-events: none; }
+        
+        /* 🛠️ RESTORED LEGEND POSITION: right: 370px */
+        #legend { position: absolute; bottom: 80px; right: 370px; width: 160px; padding: 15px; z-index: 1000; display: none; }
+        
+        /* --- UI ELEMENTS --- */
+        h2 { margin: 0 0 15px 0; font-weight: 600; font-size: 18px; }
+        .section-title { font-size: 11px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; font-weight: 700; border-bottom: 2px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
+        
+        .tool-group { background: rgba(0,0,0,0.05); padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+        .tool-label { font-size: 11px; font-weight: bold; margin-bottom: 8px; display: block; opacity: 0.8; }
+
+        select, input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 10px; box-sizing: border-box; background: rgba(255,255,255,0.5); }
+        
+        .btn { padding: 10px; border: none; border-radius: 6px; cursor: pointer; color: white; font-size: 12px; width: 100%; transition: opacity 0.2s; font-weight: 600; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        
+        .btn-primary { background: var(--accent); }
+        .btn-secondary { background: #8e44ad; } 
+        .btn-danger { background: var(--danger); }
+        .btn-warning { background: #f39c12; }
+        .btn-success { background: var(--success); }
+        .btn-purple { background: var(--purple); }
+        .btn-info { background: var(--info); color: white; }
+
+        /* Toggles */
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .toggle-label { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .switch { position: relative; display: inline-block; width: 36px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(16px); }
+
+        .search-container { position: relative; margin-bottom: 20px; }
+        .search-input { padding-left: 35px; }
+        .search-icon { position: absolute; left: 12px; top: 13px; color: #888; }
+        #search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-glass); border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 2000; margin-top: 5px; box-shadow: var(--shadow); display: none; }
+        .search-item { padding: 10px; cursor: pointer; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 13px; display: flex; justify-content: space-between; }
+        .search-item:hover { background: rgba(52, 152, 219, 0.1); }
+        
+        .custom-marker { background: white; border-radius: 50%; display: flex !important; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; transition: transform 0.2s; }
+        .custom-marker:hover { transform: scale(1.2); z-index: 1000 !important; }
+        .custom-marker i { font-size: 14px; }
+        [data-theme="dark"] .custom-marker { background: #2c3e50; border-color: #2c3e50; }
+        .road-label { background: transparent; border: none; box-shadow: none; font-size: 10px; font-weight: 700; color: #444; text-shadow: -1px -1px 0 #fff, 1px 1px 0 #fff; white-space: nowrap; transition: opacity 0.3s ease; }
+        
+        .arrow-icon { font-size: 24px; color: var(--danger); transform: translateY(-2px); }
+        .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        #loader { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 20px; }
+        /* Clickable Item Style */
+        .click-item { padding: 4px 8px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+        .click-item:hover { background: rgba(52, 152, 219, 0.2); color: var(--accent); font-weight: bold; }
+   </style>
+</head>
+<body data-theme="light" style="zoom: 100%; overflow: hidden;">
+
+    <div id="about-modal" class="glass-panel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; z-index: 6000; padding: 30px;">
+        <div class="close-btn" onclick="document.getElementById('about-modal').style.display='none'">&times;</div>
+        
+        <div class="project-header">
+            <i class="fas fa-graduation-cap school-logo"></i>
+            <div class="school-name">Yaba College of Technology</div>
+            <div class="project-dept">Dept. of Surveying and Geo-Informatics</div>
+            <div class="project-dept">Faculty of Environmental Studies</div>
+            <div style="font-size:10px; margin-top:5px; font-weight:bold;">Class of 2026 - Group 1A Project</div>
+        </div>
+
+        <ul class="member-list">
+            <li class="member-item"><span class="member-name">Muftau Abdullahi Adeola</span> <span class="member-id">F/HD/23/3560002</span></li>
+            <li class="member-item"><span class="member-name">Akinade Gbolahan Jamiu</span> <span class="member-id">F/HD/23/3560026</span></li>
+            <li class="member-item"><span class="member-name">Ahmed Quadri Opeyemi</span> <span class="member-id">F/HD/23/3560035</span></li>
+            <li class="member-item"><span class="member-name">Bereola Victoria Omotola</span> <span class="member-id">F/HD/23/3560009</span></li>
+            <li class="member-item"><span class="member-name">Adesanu AbdulHamid Adesoji</span> <span class="member-id">F/HD/23/3560044</span></li>
+        </ul>
+
+        <div class="supervisor-box">
+            <div class="super-label">Supervised By</div>
+            <div class="super-name">Dr. Ajibola I.I</div>
+        </div>
+    </div>
+
+    <div id="loader"><i class="fas fa-spinner fa-spin"></i> Processing...</div>
+
+    <div id="dashboard-modal" class="glass-panel">
+        <div class="close-btn" onclick="closeDashboard()">&times;</div>
+        <h2 id="dashboard-title"><i class="fas fa-chart-bar"></i> Descriptive Analysis</h2>
+        
+        <div class="btn-grid" style="margin-bottom: 20px;" id="dashboard-top-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-road">0 km</div>
+                <div class="stat-label">Total Roads</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-area">0 km²</div>
+                <div class="stat-label">Total Area</div>
+            </div>
+            <div class="stat-card" id="card-road-count" style="display:none;">
+                <div class="stat-value" id="stat-road-count">0</div>
+                <div class="stat-label">Road Count</div>
+            </div>
+            <div class="stat-card" id="card-longest" style="display:none; grid-column: span 2;">
+                <div class="stat-value" id="stat-longest" style="font-size:16px;">-</div>
+                <div class="stat-label">Longest Road</div>
+            </div>
+        </div>
+
+        <div class="section-title">Facility Distribution</div>
+        <div id="dashboard-charts">
+            </div>
+    </div>
+
+    <div id="theme-toggle" class="glass-panel" onclick="toggleTheme()"><i class="fas fa-moon" id="theme-icon"></i></div>
+    <div id="north-arrow" class="glass-panel" style="background: rgba(255,255,255,0.6);">
+        <span style="color:var(--text-color)">N</span><i class="fas fa-long-arrow-alt-up arrow-icon"></i>
+    </div>
+
+    <div id="legend" class="glass-panel">
+        <div class="section-title">Active Layers</div>
+        <div id="legend-content"></div>
+    </div>
+    <div id="coords-box" class="glass-panel">Lat: 0.0000 | Lng: 0.0000</div>
+
+    <div id="sidebar" class="glass-panel">
+        <h2><i class="fas fa-map-marked-alt"></i> Street Guide</h2>
+        
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" placeholder="Search places, roads..." onkeyup="handleSearch(this.value)">
+            <div id="search-results"></div>
+        </div>
+
+        <div class="section-title">Focus Area</div>
+        <select id="lcdaSelect" onchange="zoomToLCDA()">
+            <option value="all">All LCDAs</option>
+        </select>
+        
+        <button id="btn-lcda-stats" class="btn btn-info" onclick="openDashboard(null, selectedLcdaName)" style="margin-top: 5px; display: none;">
+            <i class="fas fa-file-alt"></i> View LCDA Report
+        </button>
+
+        <div class="section-title" style="margin-top:15px">Layers</div>
+        <div class="toggle-row">
+            <span class="toggle-label"><i class="fas fa-vector-square" style="color:orange"></i> Boundary</span>
+            <label class="switch"><input type="checkbox" id="toggle-boundary" onchange="toggleLayer('boundary')" checked><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <span class="toggle-label"><i class="fas fa-draw-polygon" style="color:purple"></i> LCDA Zones</span>
+            <label class="switch"><input type="checkbox" id="toggle-lcda" onchange="toggleLayer('lcda')"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row">
+            <span class="toggle-label"><i class="fas fa-road" style="color:gray"></i> Roads</span>
+            <label class="switch"><input type="checkbox" id="toggle-roads" onchange="toggleLayer('roads')"><span class="slider"></span></label>
+        </div>
+        <div class="toggle-row" style="padding-left: 20px; border-bottom: none;">
+            <span class="toggle-label" style="font-size:12px; color:#666;">Show Names (Zoom 17+)</span>
+            <label class="switch" style="transform: scale(0.8);"><input type="checkbox" id="toggle-road-names" onchange="updateLabelVisibility()"><span class="slider"></span></label>
+        </div>
+
+        <div class="section-title" style="margin-top:15px">Points of Interest</div>
+        <div id="poi-list"></div>
+
+        <div style="margin-top: 20px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 15px; text-align: center;">
+            <button class="btn" style="background: #2c3e50;" onclick="document.getElementById('about-modal').style.display='block'">
+                <i class="fas fa-info-circle"></i> Project Credits
+            </button>
+        </div>
+    </div>
+
+    <div id="analysis-panel" class="glass-panel">
+        <div class="section-title" style="color: var(--danger);"><i class="fas fa-chart-pie"></i> Analysis Tools</div>
+        
+        <button class="btn btn-success" onclick="openDashboard()" style="margin-bottom: 10px;">
+            <i class="fas fa-tachometer-alt"></i> View Report (Stats)
+        </button>
+
+        <div class="tool-group">
+            <span class="tool-label">Find Nearest Service</span>
+            <select id="nearestCat" style="margin-bottom:5px;">
+                <option value="Bank">Bank</option>
+                <option value="Hospital">Hospital</option>
+                <option value="Police Station">Police Station</option>
+                <option value="Primary School">Primary School</option>
+                <option value="Secondary School">Secondary School</option>
+                <option value="Mosque">Mosque</option>
+                <option value="Church">Church</option>
+                <option value="Market">Market</option>
+                <option value="Hotel">Hotel</option>
+                <option value="Event Center">Event Center</option>
+            </select>
+            <button class="btn btn-primary" onclick="activateTool('nearest')">
+                <i class="fas fa-search-location"></i> Find Closest
+            </button>
+        </div>
+
+        <div class="tool-group">
+            <span class="tool-label">Density Analysis</span>
+            <select id="densityCat" style="margin-bottom:5px;">
+                <option value="School">Schools (All)</option>
+                <option value="Bank">Banks</option>
+                <option value="Hospital">Hospitals</option>
+                <option value="Market">Markets</option>
+                <option value="Mosque">Mosques</option>
+                <option value="Church">Churches</option>
+                <option value="Hotel">Hotels</option>
+                <option value="Event Center">Event Centers</option>
+            </select>
+            <button class="btn btn-warning" onclick="generateHeatmap()">
+                <i class="fas fa-fire"></i> Show Density
+            </button>
+        </div>
+
+        <div class="tool-group">
+            <span class="tool-label">Routing & Proximity</span>
+            <input type="number" id="bufferDist" placeholder="Buffer Radius (m)">
+            <div class="btn-grid">
+                <button class="btn btn-primary" onclick="activateTool('route')"><i class="fas fa-route"></i> Route</button>
+                <button class="btn btn-primary" onclick="activateTool('buffer')"><i class="fas fa-bullseye"></i> Buffer</button>
+            </div>
+            
+            <button id="btn-buffer-stats" class="btn btn-purple" onclick="openDashboard(currentBufferStats)" style="margin-top: 5px; display: none;">
+                <i class="fas fa-chart-pie"></i> View Buffer Stats
+            </button>
+        </div>
+
+        <button class="btn btn-secondary" onclick="activateTool('identify')" style="margin-bottom: 10px;">
+            <i class="fas fa-info-circle"></i> Identify LCDA
+        </button>
+
+        <div style="border-top: 1px solid rgba(0,0,0,0.1); margin-top: 15px; padding-top: 15px;">
+            <button class="btn btn-danger" onclick="resetMap()">
+                <i class="fas fa-trash-alt"></i> Clear Analysis
+            </button>
+            <div id="status" style="margin-top:10px; font-size:11px; opacity:0.7; text-align:center; font-style:italic;">System Ready.</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        const API_URL = "/api";
+        const POI_TYPES = [
+            { id: 'Bank', icon: 'fa-money-bill', color: '#2ecc71' },
+            { id: 'School', icon: 'fa-graduation-cap', color: '#f1c40f' },
+            { id: 'Hospital', icon: 'fa-hospital', color: '#e74c3c' },
+            { id: 'Market', icon: 'fa-shopping-cart', color: '#9b59b6' },
+            { id: 'Hotel', icon: 'fa-bed', color: '#34495e' },
+            { id: 'Police Station', icon: 'fa-shield-alt', color: '#2980b9' },
+            { id: 'Mosque', icon: 'fa-mosque', color: '#16a085' },
+            { id: 'Event Center', icon: 'fa-glass-cheers', color: '#d35400' },
+            { id: 'Church', icon: 'fa-church', color: '#8e44ad' }
+        ];
+
+        // Map Init
+        const map = L.map('map', { zoomControl: false }).setView([6.5244, 3.3792], 13);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const lightMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' });
+        const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' });
+        lightMap.addTo(map);
+
+        const layers = { 
+            boundary: null, lcda: null, roads: null, poi: {}, 
+            analysis: L.layerGroup().addTo(map), 
+            heatmap: L.layerGroup().addTo(map) 
+        };
+        let lcdaData = null;
+        let searchMarker = null;
+        let currentBufferStats = null; 
+        
+        // 🛠️ NEW GLOBAL VARIABLE for LCDA Stats
+        let selectedLcdaName = null; 
+
+        map.on('mousemove', function(e) {
+            document.getElementById('coords-box').innerText = `Lat: ${e.latlng.lat.toFixed(5)} | Lng: ${e.latlng.lng.toFixed(5)}`;
+        });
+        
+        function closeDashboard() {
+            document.getElementById('dashboard-modal').style.display = 'none';
+        }
+
+        // 🛠️ UPDATED DASHBOARD LOGIC (With Clickable Links)
+        async function openDashboard(customStats = null, lcdaName = null) {
+            document.getElementById('loader').style.display = 'block';
+            try {
+                let data;
+                const title = document.getElementById('dashboard-title');
+                const topStats = document.getElementById('dashboard-top-stats');
+                
+                document.getElementById('card-road-count').style.display = 'none';
+                document.getElementById('card-longest').style.display = 'none';
+                topStats.style.display = 'grid';
+
+                if (lcdaName) {
+                    const res = await fetch(`${API_URL}/stats/${lcdaName}`);
+                    data = res.json ? await res.json() : res; 
+                    title.innerHTML = `<i class="fas fa-map"></i> Analysis: ${data.lcda_name}`;
+                    document.getElementById('stat-road').innerText = (data.area_sqkm * 5).toFixed(2) + " km"; 
+                    document.getElementById('stat-area').innerText = data.area_sqkm + " km²";
+                    
+                    document.getElementById('card-road-count').style.display = 'block';
+                    document.getElementById('stat-road-count').innerText = data.road_count;
+                    document.getElementById('card-longest').style.display = 'block';
+                    document.getElementById('stat-longest').innerText = data.longest_road;
+
+                } else if (customStats) {
+                    data = customStats;
+                    title.innerHTML = '<i class="fas fa-bullseye"></i> Buffer Analysis Report';
+                    topStats.style.display = 'none';
+                } else {
+                    const res = await fetch(`${API_URL}/stats`);
+                    data = await res.json();
+                    title.innerHTML = '<i class="fas fa-chart-bar"></i> Descriptive Analysis (Global)';
+                    document.getElementById('stat-road').innerText = data.total_road_km + " km";
+                    document.getElementById('stat-area').innerText = data.total_area_sqkm + " km²";
+                }
+                
+                const chartDiv = document.getElementById('dashboard-charts');
+                chartDiv.innerHTML = '';
+                
+                if (data.poi_stats.length > 0) {
+                    const maxVal = Math.max(...data.poi_stats.map(s => s.value));
+                    data.poi_stats.forEach(stat => {
+                        const pct = (stat.value / maxVal) * 100;
+                        
+                        // 🛠️ GENERATE CLICKABLE LIST
+                        let itemsHtml = "";
+                        if (stat.items && stat.items.length > 0) {
+                            const listRows = stat.items.map(item => 
+                                `<div class="click-item" onclick="zoomToFeature(${item.lat}, ${item.lng}, '${item.name.replace(/'/g, "\\'")}')">
+                                    <i class="fas fa-map-marker-alt" style="font-size:10px; color:var(--accent)"></i> ${item.name}
+                                </div>`
+                            ).join('');
+                            
+                            itemsHtml = `
+                                <details style="margin-top:5px; font-size:12px; color:#555; background:rgba(255,255,255,0.5); padding:5px; border-radius:4px;">
+                                    <summary style="cursor:pointer; font-weight:bold; color:var(--accent);">View List (${stat.value})</summary>
+                                    <div style="margin-top:5px; max-height:120px; overflow-y:auto;">${listRows}</div>
+                                </details>
+                            `;
+                        }
+
+                        chartDiv.innerHTML += `
+                            <div class="bar-container" style="display:block; margin-bottom:12px;">
+                                <div style="display:flex; align-items:center;">
+                                    <div class="bar-label">${stat.label}</div>
+                                    <div class="bar-track"><div class="bar-fill" style="width: ${pct}%"></div></div>
+                                    <div class="bar-count">${stat.value}</div>
+                                </div>
+                                ${itemsHtml}
+                            </div>
+                        `;
+                    });
+                } else {
+                    chartDiv.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6">No facilities found.</div>';
+                }
+                
+                document.getElementById('dashboard-modal').style.display = 'block';
+            } catch(e) { console.error(e); alert("Failed to load statistics."); }
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        // 🛠️ NEW HELPER FUNCTION: Zooms to the item and highlights it
+        function zoomToFeature(lat, lng, name) {
+            // Close dashboard to see map (optional, remove if you want it to stay open)
+            document.getElementById('dashboard-modal').style.display = 'none';
+            
+            map.flyTo([lat, lng], 18, { duration: 1.5 });
+            
+            // Add a temporary pulsing marker
+            const popup = L.popup()
+                .setLatLng([lat, lng])
+                .setContent(`<b>${name}</b>`)
+                .openOn(map);
+        }
+
+        // Search Logic
+        let searchTimeout;
+        async function handleSearch(query) {
+            clearTimeout(searchTimeout);
+            const resultsDiv = document.getElementById('search-results');
+            if (query.length < 2) { resultsDiv.style.display = 'none'; return; }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${API_URL}/search?q=${query}`);
+                    const data = await res.json();
+                    resultsDiv.innerHTML = '';
+                    if (data.length > 0) {
+                        resultsDiv.style.display = 'block';
+                        data.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'search-item';
+                            div.innerHTML = `<span>${item.name}</span><span class="search-cat">${item.category}</span>`;
+                            div.onclick = () => zoomToResult(item);
+                            resultsDiv.appendChild(div);
+                        });
+                    } else { resultsDiv.style.display = 'none'; }
+                } catch(e) {}
+            }, 300);
+        }
+
+        function zoomToResult(item) {
+            map.flyTo([item.lat, item.lng], 17);
+            document.getElementById('search-results').style.display = 'none';
+            document.querySelector('.search-input').value = item.name;
+            if (searchMarker) map.removeLayer(searchMarker);
+            searchMarker = L.marker([item.lat, item.lng]).addTo(map).bindPopup(`<b>${item.name}</b><br>${item.category}`).openPopup();
+        }
+
+        var myCanvas = L.canvas({ padding: 0.5 });
+
+        window.onload = async () => {
+            generatePOIToggles();
+            await loadLCDAs(); 
+            
+            await loadStaticLayer('boundary', '/boundary', '#ff6b6b', 2, true); 
+            
+            if (layers.boundary) {
+                map.fitBounds(layers.boundary.getBounds(), { padding: [50, 50] });
+            }
+            
+            updateLegend();
+            loadStaticLayer('roads', '/roads_layer', '#bdc3c7', 1, false, 'name'); 
+        };
+
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('theme-icon');
+            if (body.getAttribute('data-theme') === 'light') {
+                body.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                map.removeLayer(lightMap); map.addLayer(darkMap);
+            } else {
+                body.setAttribute('data-theme', 'light');
+                icon.className = 'fas fa-moon';
+                map.removeLayer(darkMap); map.addLayer(lightMap);
+            }
+        }
+
+        async function loadLCDAs() {
+            const res = await fetch(`${API_URL}/lcdas`);
+            lcdaData = await res.json();
+            const select = document.getElementById('lcdaSelect');
+            lcdaData.features.forEach((feature, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = feature.properties.name || `LCDA ${index+1}`;
+                select.appendChild(opt);
+            });
+            layers.lcda = L.geoJSON(lcdaData, {
+                style: { color: '#9b59b6', weight: 2, fillOpacity: 0.1, dashArray: '5, 5' },
+                onEachFeature: (f, l) => l.bindTooltip(f.properties.name)
+            });
+        }
+
+        // 🛠️ UPDATE: Show button and set variable when selecting from Dropdown
+       function zoomToLCDA() {
+            const val = document.getElementById('lcdaSelect').value;
+            
+            // 1. Clear any previous boundary or analysis
+            layers.analysis.clearLayers();
+
+            if (val === 'all') {
+                if (layers.lcda) map.fitBounds(layers.lcda.getBounds());
+                else map.setView([6.5244, 3.3792], 13);
+                
+                selectedLcdaName = null;
+                document.getElementById('btn-lcda-stats').style.display = 'none';
+            } else {
+                const feature = lcdaData.features[val];
+                
+                // 2. 🛠️ THIS WAS MISSING: Draw the boundary on the map
+                L.geoJSON(feature, {
+                    style: { 
+                        color: '#3498db', // Blue Outline
+                        weight: 4, 
+                        fillColor: '#3498db', 
+                        fillOpacity: 0.1 
+                    }
+                }).addTo(layers.analysis);
+
+                // 3. Zoom to the area
+                const tempLayer = L.geoJSON(feature);
+                map.flyToBounds(tempLayer.getBounds(), { padding: [50, 50], duration: 1.5 });
+                
+                // 4. Update the Report Button
+                selectedLcdaName = feature.properties.name;
+                document.getElementById('btn-lcda-stats').style.display = 'block';
+                document.getElementById('btn-lcda-stats').innerText = `Report: ${selectedLcdaName}`;
+            }
+        }
+        async function toggleLayer(type, subtype = null) {
+            const checkbox = document.getElementById(subtype ? `toggle-${subtype}` : `toggle-${type}`);
+            if (checkbox.checked) {
+                if (type === 'poi') await loadPOILayer(subtype);
+                else if (type === 'roads') {
+                    if (!layers.roads) await loadStaticLayer('roads', '/roads_layer', '#95a5a6', 1, true, 'name');
+                    else layers.roads.addTo(map);
+                    setTimeout(updateLabelVisibility, 100);
+                } else if (type === 'lcda') { if(layers.lcda) layers.lcda.addTo(map); }
+                else if (type === 'boundary') {
+                    if (!layers.boundary) await loadStaticLayer('boundary', '/boundary', '#e67e22', 3, true);
+                    else layers.boundary.addTo(map);
+                }
+            } else {
+                if (type === 'poi' && layers.poi[subtype]) map.removeLayer(layers.poi[subtype]);
+                else if (layers[type]) map.removeLayer(layers[type]);
+            }
+            updateLegend();
+        }
+
+        async function loadStaticLayer(key, endpoint, color, weight, addToMap, labelProp = null) {
+            document.getElementById('loader').style.display = 'block';
+            try {
+                const res = await fetch(`${API_URL}${endpoint}`);
+                const data = await res.json();
+                layers[key] = L.geoJSON(data, {
+                    renderer: myCanvas,
+                    style: { color: color, weight: weight, fillOpacity: 0.1 },
+                    onEachFeature: function(feature, layer) {
+                        if (labelProp && feature.properties[labelProp]) {
+                            layer.bindTooltip(feature.properties[labelProp], {
+                                permanent: true, direction: 'center', className: 'road-label', opacity: 0
+                            });
+                        }
+                    }
+                });
+                if (addToMap) {
+                    layers[key].addTo(map);
+                    setTimeout(updateLabelVisibility, 500);
+                }
+            } catch(e) {}
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function updateLabelVisibility() {
+            var zoomLevel = map.getZoom();
+            var isToggleOn = document.getElementById('toggle-road-names').checked;
+            var isRoadLayerOn = document.getElementById('toggle-roads').checked;
+            var opacity = (isRoadLayerOn && isToggleOn && zoomLevel >= 17) ? 1 : 0;
+            document.querySelectorAll('.road-label').forEach(el => el.style.opacity = opacity);
+        }
+
+        let zoomTimeout;
+        map.on('zoomend', () => { clearTimeout(zoomTimeout); zoomTimeout = setTimeout(updateLabelVisibility, 100); });
+
+        async function loadPOILayer(category) {
+            if (layers.poi[category]) { layers.poi[category].addTo(map); return; }
+            const meta = POI_TYPES.find(p => p.id === category);
+            document.getElementById('loader').style.display = 'block';
+            try {
+                const res = await fetch(`${API_URL}/features/${category}`);
+                const data = await res.json();
+                layers.poi[category] = L.geoJSON(data, {
+                    pointToLayer: (feature, latlng) => {
+                        return L.marker(latlng, {
+                            icon: L.divIcon({
+                                className: 'custom-marker',
+                                html: `<i class="fas ${meta.icon}" style="color:${meta.color}"></i>`,
+                                iconSize: [24, 24], iconAnchor: [12, 12]
+                            })
+                        });
+                    },
+                    onEachFeature: (f, l) => l.bindPopup(`<b>${f.properties.name}</b><br>${f.properties.category}`)
+                });
+                layers.poi[category].addTo(map);
+            } catch(e) {}
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function updateLegend() {
+            const legendDiv = document.getElementById('legend');
+            const contentDiv = document.getElementById('legend-content');
+            contentDiv.innerHTML = '';
+            let activeCount = 0;
+            if (document.getElementById('toggle-boundary').checked) { contentDiv.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:orange"></span> Project Boundary</div>`; activeCount++; }
+            if (document.getElementById('toggle-lcda').checked) { contentDiv.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:purple"></span> LCDA Zones</div>`; activeCount++; }
+            if (document.getElementById('toggle-roads').checked) { contentDiv.innerHTML += `<div class="legend-item"><span class="legend-dot" style="background:gray"></span> Road Network</div>`; activeCount++; }
+            POI_TYPES.forEach(type => {
+                if (document.getElementById(`toggle-${type.id}`).checked) {
+                    contentDiv.innerHTML += `<div class="legend-item"><i class="fas ${type.icon}" style="color:${type.color}; width:15px; text-align:center;"></i> ${type.id}</div>`;
+                    activeCount++;
+                }
+            });
+            legendDiv.style.display = activeCount > 0 ? 'block' : 'none';
+        }
+
+        function generatePOIToggles() {
+            const container = document.getElementById('poi-list');
+            POI_TYPES.forEach(type => {
+                const div = document.createElement('div');
+                div.className = 'toggle-row';
+                div.innerHTML = `<span class="toggle-label"><i class="fas ${type.icon}" style="color:${type.color}; width:20px;"></i> ${type.id}</span>
+                <label class="switch"><input type="checkbox" id="toggle-${type.id}" onchange="toggleLayer('poi', '${type.id}')"><span class="slider"></span></label>`;
+                container.appendChild(div);
+            });
+        }
+
+        let activeTool = null; let routePoints = [];
+        
+        function activateTool(tool) {
+            activeTool = tool; 
+            routePoints = []; 
+            layers.analysis.clearLayers();
+            layers.heatmap.clearLayers();
+            
+            document.getElementById('btn-buffer-stats').style.display = 'none';
+            currentBufferStats = null;
+
+            let msg = "";
+            if (tool === 'route') msg = "Click Map: Start Point";
+            else if (tool === 'buffer') msg = "Click Map: Center Point";
+            else if (tool === 'nearest') msg = "Click Map: Find Closest " + document.getElementById('nearestCat').value;
+            else if (tool === 'identify') msg = "Click Map: Identify LCDA";
+            
+            document.getElementById('status').innerText = msg;
+        }
+
+        map.on('click', async (e) => {
+            if (!activeTool) return;
+            document.getElementById('loader').style.display = 'block';
+
+            if (activeTool === 'identify') {
+                try {
+                    const res = await fetch(`${API_URL}/identify`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng })
+                    });
+                    const data = await res.json();
+                    if (data.features.length > 0) {
+                        const name = data.features[0].properties.name;
+                        L.geoJSON(data, { style: { color: 'purple', fillOpacity: 0.2 } }).addTo(layers.analysis);
+                        L.popup().setLatLng(e.latlng).setContent(`<b>Location Identified</b><br>Zone: ${name}`).openOn(map);
+                        document.getElementById('status').innerText = `Located in: ${name}`;
+                        
+                        // 🛠️ UPDATE: Show Button from Identify
+                        selectedLcdaName = name;
+                        document.getElementById('btn-lcda-stats').style.display = 'block';
+                        document.getElementById('btn-lcda-stats').innerText = `Report: ${selectedLcdaName}`;
+
+                    } else { L.popup().setLatLng(e.latlng).setContent("No LCDA/Ward found here.").openOn(map); }
+                } catch(err) { console.error(err); }
+            }
+            else if (activeTool === 'nearest') {
+                const cat = document.getElementById('nearestCat').value;
+                try {
+                    const res = await fetch(`${API_URL}/nearest`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng, category: cat })
+                    });
+                    const data = await res.json();
+                    
+                    if (data.features.length > 0) {
+                        const routeFeat = data.features.find(f => f.properties.type === 'route');
+                        const targetFeat = data.features.find(f => f.properties.is_target);
+                        const msg = routeFeat ? routeFeat.properties.distance_msg : "Found";
+
+                        L.geoJSON(data, {
+                            style: function(feature) {
+                                if (feature.properties.type === 'route') {
+                                    return { 
+                                        color: 'blue', 
+                                        weight: 4, 
+                                        opacity: 0.7,
+                                        dashArray: feature.properties.style === 'dashed' ? '5, 10' : null 
+                                    };
+                                }
+                            },
+                            pointToLayer: (f, l) => {
+                                if (f.properties.is_target) {
+                                    return L.circleMarker(l, { radius: 8, color: 'blue', fillColor: '#3498db', fillOpacity: 1 });
+                                }
+                            }
+                        }).addTo(layers.analysis)
+                          .bindPopup(`<b>Nearest ${cat}</b><br>${targetFeat.properties.name}<br>${msg}`).openPopup();
+
+                        document.getElementById('status').innerText = `${msg} to ${targetFeat.properties.name}`;
+                    } else { alert("No " + cat + " found."); }
+                } catch(err) { console.error(err); }
+            }
+           else if (activeTool === 'buffer') {
+                const dist = document.getElementById('bufferDist').value || 500;
+                try {
+                    const res = await fetch(`${API_URL}/buffer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng, distance: dist }) });
+                    const data = await res.json();
+                    
+                    // Visuals
+                    L.circle(e.latlng, { radius: dist, color: 'green', fillOpacity: 0.1 }).addTo(layers.analysis);
+                    L.geoJSON(data, { 
+                        pointToLayer: (f, l) => {
+                            const typeData = POI_TYPES.find(p => p.id === f.properties.category);
+                            const color = typeData ? typeData.color : '#D4AF37'; 
+                            return L.circleMarker(l, { radius: 8, color: 'white', weight: 2, fillColor: color, fillOpacity: 0.9 });
+                        },
+                        onEachFeature: (f, l) => l.bindPopup(`<b>${f.properties.name}</b><br>${f.properties.category}`)
+                    }).addTo(layers.analysis);
+                    
+                    document.getElementById('status').innerText = `Buffer: ${data.features.length} items found.`;
+
+                    // 🛠️ UPDATE: Collect Items with Coords
+                    const statsObj = {};
+                    
+                    data.features.forEach(f => {
+                        const cat = f.properties.category || "Unknown";
+                        const name = f.properties.name || "Unnamed";
+                        // Extract Coords from GeoJSON
+                        const lat = f.geometry.coordinates[1]; 
+                        const lng = f.geometry.coordinates[0];
+
+                        if (!statsObj[cat]) {
+                            statsObj[cat] = { count: 0, items: [] };
+                        }
+                        
+                        statsObj[cat].count++;
+                        // Push object instead of string
+                        statsObj[cat].items.push({ name: name, lat: lat, lng: lng });
+                    });
+
+                    currentBufferStats = {
+                        poi_stats: Object.keys(statsObj).map(k => ({ 
+                            label: k, 
+                            value: statsObj[k].count,
+                            items: statsObj[k].items // Pass the full array
+                        }))
+                    };
+                    document.getElementById('btn-buffer-stats').style.display = 'block';
+
+                } catch(err) { console.error(err); alert("Buffer failed"); }
+            }
+            else if (activeTool === 'route') {
+                L.marker(e.latlng).addTo(layers.analysis); routePoints.push(e.latlng);
+                if (routePoints.length === 2) {
+                    try {
+                        const res = await fetch(`${API_URL}/route`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start_lat: routePoints[0].lat, start_lng: routePoints[0].lng, end_lat: routePoints[1].lat, end_lng: routePoints[1].lng }) });
+                        const data = await res.json();
+                        L.geoJSON(data, { style: { color: '#3498db', weight: 5 } }).addTo(layers.analysis);
+                        document.getElementById('status').innerText = "Route Found.";
+                    } catch(err) { alert("Routing failed"); }
+                    activeTool = null; 
+                }
+            }
+            if (activeTool !== 'route') activeTool = null; 
+            document.getElementById('loader').style.display = 'none';
+        });
+
+        async function generateHeatmap() {
+            const cat = document.getElementById('densityCat').value;
+            layers.heatmap.clearLayers(); 
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('status').innerText = `Generating ${cat} Density...`;
+
+            try {
+                const res = await fetch(`${API_URL}/features/${cat}`);
+                const data = await res.json();
+                
+                if (data.features && data.features.length > 0) {
+                    data.features.forEach(f => {
+                        if (f.geometry && f.geometry.coordinates) {
+                            const lat = f.geometry.coordinates[1];
+                            const lng = f.geometry.coordinates[0];
+                            L.circle([lat, lng], {
+                                radius: 100, color: 'red', weight: 0,
+                                fillColor: '#ff0000', fillOpacity: 0.10 
+                            }).addTo(layers.heatmap);
+                        }
+                    });
+                    document.getElementById('status').innerText = `${cat} Density Map Loaded (${data.features.length} points).`;
+                } else {
+                    alert("No data found for Density Analysis.");
+                }
+            } catch(e) { console.error(e); alert("Density Analysis failed: " + e.message); }
+            document.getElementById('loader').style.display = 'none';
+        }
+
+        function resetMap() {
+            layers.analysis.clearLayers(); activeTool = null; routePoints = [];
+            if(searchMarker) map.removeLayer(searchMarker);
+            layers.heatmap.clearLayers();
+            document.getElementById('status').innerText = "Cleared.";
+            
+            document.getElementById('btn-buffer-stats').style.display = 'none';
+            currentBufferStats = null;
+            document.getElementById('btn-lcda-stats').style.display = 'none';
+            selectedLcdaName = null;
+        }
+    </script>
+</body>
+</html>
