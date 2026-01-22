@@ -4,34 +4,41 @@ from flask_cors import CORS
 import psycopg2
 import json
 
-app = Flask(__name__, template_folder='templates') # explicit template folder
-CORS(app)
+app = Flask(__name__, template_folder='templates')
+CORS(app) 
 
-# 🛠️ PROD: Get Database URL from Render Environment Variable
-# If running locally, it defaults to your local connection string (optional)
+# ⚠️ CONFIGURATION
+# Production: Uses Render's Environment Variable
+# Local: Uses your hardcoded string
 DB_URL = os.environ.get("DATABASE_URL")
+LOCAL_DB_CONFIG = "dbname='street_guide' user='postgres' password='admin' host='localhost'"
 
 def get_db_connection():
-    # We add sslmode=require for secure cloud connections
-    if "?" not in DB_URL:
-        conn_str = f"{DB_URL}?sslmode=require"
-    else:
-        conn_str = DB_URL
-    return psycopg2.connect(conn_str)
+    try:
+        if DB_URL:
+            # PROD: Add SSL mode for security
+            conn_str = f"{DB_URL}?sslmode=require" if "?" not in DB_URL else DB_URL
+            return psycopg2.connect(conn_str)
+        else:
+            # LOCAL
+            return psycopg2.connect(LOCAL_DB_CONFIG)
+    except Exception as e:
+        print(f"❌ Database Connection Failed: {e}")
+        return None
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
 # ---------------------------------------------------------
-# 1. ATTRIBUTE QUERY (Fixed for Heatmap & Partial Matches)
+# 1. ATTRIBUTE QUERY
 # ---------------------------------------------------------
 @app.route('/api/features/<category>', methods=['GET'])
 def get_features(category):
     conn = get_db_connection()
+    if not conn: return jsonify([]), 500
     cur = conn.cursor()
     
-    # 🛠️ FIX 1: Use Wildcards (%) so "School" finds "Primary School" & "Secondary School"
     search_term = f"%{category}%"
     
     query = """
@@ -51,22 +58,19 @@ def get_features(category):
     cur.close()
     conn.close()
     
-    # Handle empty results safely
     if result is None or result.get('features') is None:
         return jsonify({"type": "FeatureCollection", "features": []})
         
     return jsonify(result)
 
 # ---------------------------------------------------------
-# 2. SHORTEST PATH / ROUTING 
+# 2. SHORTEST PATH / ROUTING (Fixed Column Name)
 # ---------------------------------------------------------
 @app.route('/api/route', methods=['POST'])
 def get_route():
     data = request.json
-    start_lat = data['start_lat']
-    start_lng = data['start_lng']
-    end_lat = data['end_lat']
-    end_lng = data['end_lng']
+    start_lat, start_lng = data['start_lat'], data['start_lng']
+    end_lat, end_lng = data['end_lat'], data['end_lng']
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -83,13 +87,13 @@ def get_route():
     end_node = cur.fetchone()[0]
 
     # Dijkstra Routing
-    # 🛠️ FIX: Changed 'r.roadname' to 'r."ROADNAME"'
+    # 🛠️ FIX: Used "ROADNAME" and COALESCE
     sql_route = f"""
         SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(ST_AsGeoJSON(row.*)::json)
         ) FROM (
-            SELECT r.id, COALESCE(r."ROADNAME", 'Unnamed Road') AS name, r.geom 
+            SELECT r.id, COALESCE(r."ROADNAME", 'Road') AS name, r.geom 
             FROM pgr_dijkstra(
                 'SELECT id, source, target, cost, reverse_cost FROM roads',
                 {start_node}, {end_node}, directed := false
@@ -158,29 +162,39 @@ def get_lcdas():
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
-# 5. GET ROAD NETWORK (OPTIMIZED)
+# 5. GET ROAD NETWORK (OPTIMIZED for Speed & Memory)
 # ---------------------------------------------------------
 @app.route('/api/roads_layer', methods=['GET'])
 def get_roads_layer():
     conn = get_db_connection()
+    if not conn: return jsonify({"features": []})
     cur = conn.cursor()
-    # Optimized geometry for faster loading
-    # 🛠️ FIX: Changed 'roadname' to 'COALESCE("ROADNAME", 'Unknown')'
+    
+    # 🛠️ OPTIMIZATION:
+    # 1. Simplify geometry (0.0001) reduces file size significantly.
+    # 2. WHERE ST_Length > 50 filters out tiny segments to prevent server crashes.
     query = """
         SELECT json_build_object(
             'type', 'FeatureCollection',
             'features', json_agg(
                 json_build_object(
                     'type', 'Feature',
-                    'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.00005), 5)::json,
-                    'properties', json_build_object('name', COALESCE("ROADNAME", 'Unknown Road'))
+                    'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.0001), 5)::json,
+                    'properties', json_build_object('name', COALESCE("ROADNAME", 'Road'))
                 )
             )
         )
-        FROM roads;
+        FROM roads
+        WHERE ST_Length(geom::geography) > 50; 
     """
-    cur.execute(query)
-    result = cur.fetchone()[0]
+    try:
+        cur.execute(query)
+        result = cur.fetchone()[0]
+    except Exception as e:
+        print(f"Road Layer Error: {e}")
+        conn.rollback()
+        result = None
+
     cur.close()
     conn.close()
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
@@ -206,7 +220,7 @@ def get_boundary():
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
-# 7. GLOBAL SEARCH
+# 7. GLOBAL SEARCH (Fixed Column Name)
 # ---------------------------------------------------------
 @app.route('/api/search', methods=['GET'])
 def search_all():
@@ -217,7 +231,7 @@ def search_all():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # 🛠️ FIX: Changed 'roadname' to '"ROADNAME"'
+    # 🛠️ FIX: Changed roadname to "ROADNAME"
     sql = """
         SELECT name, category, ST_X(ST_Centroid(geom)) as lng, ST_Y(ST_Centroid(geom)) as lat
         FROM (
@@ -241,7 +255,7 @@ def search_all():
     return jsonify(results)
 
 # ---------------------------------------------------------
-# 8. NEAREST NEIGHBOR (FIXED: Wildcard & Distance)
+# 8. NEAREST NEIGHBOR
 # ---------------------------------------------------------
 @app.route('/api/nearest', methods=['POST'])
 def get_nearest():
@@ -253,7 +267,6 @@ def get_nearest():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # 🛠️ FIX 2: Use ILIKE with wildcards for "Find Nearest" too
     search_term = f"%{category}%"
 
     # 1. Find the Geometrically Nearest Item
@@ -314,7 +327,6 @@ def get_nearest():
 
     if route_res and route_res[0]:
         route_geom = json.loads(route_res[0])
-        # 🛠️ FIX 3: Correct Distance (Remove multiplier)
         total_dist = round(route_res[1]) 
         
         features.append({
@@ -353,7 +365,7 @@ def get_nearest():
     return jsonify({"type": "FeatureCollection", "features": features})
 
 # ---------------------------------------------------------
-# 9. SPATIAL IDENTIFY (Point in Polygon)
+# 9. SPATIAL IDENTIFY
 # ---------------------------------------------------------
 @app.route('/api/identify', methods=['POST'])
 def identify_location():
@@ -382,14 +394,13 @@ def identify_location():
     return jsonify(result if result else {"type": "FeatureCollection", "features": []})
 
 # ---------------------------------------------------------
-# 10. DESCRIPTIVE STATISTICS (Dashboard Data)
+# 10. DESCRIPTIVE STATISTICS
 # ---------------------------------------------------------
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # 1. Count POIs by Category
     cur.execute("""
         SELECT category, COUNT(*) as count 
         FROM point_features 
@@ -398,11 +409,9 @@ def get_stats():
     """)
     poi_rows = cur.fetchall()
     
-    # 2. Total Road Length (in Kilometers)
     cur.execute("SELECT SUM(ST_Length(geom::geography)) / 1000 FROM roads")
     road_len = cur.fetchone()[0]
 
-    # 3. Total LCDA Area (in Square Kilometers)
     cur.execute("SELECT SUM(ST_Area(geom::geography)) / 1000000 FROM lcda_polygons")
     area_sqkm = cur.fetchone()[0]
 
@@ -416,7 +425,7 @@ def get_stats():
     })
 
 # ---------------------------------------------------------
-# 11. 🛠️ NEW: LCDA SPECIFIC STATS (Updated for Clickable Links)
+# 11. LCDA SPECIFIC STATS (Fixed Column Name)
 # ---------------------------------------------------------
 @app.route('/api/stats/<lcda_name>', methods=['GET'])
 def get_lcda_stats(lcda_name):
@@ -439,8 +448,7 @@ def get_lcda_stats(lcda_name):
     road_count = road_data[0]
     longest_road_len = round(road_data[1]) if road_data[1] else 0
 
-    # 3. Longest Road Name
-    # 🛠️ FIX: Changed 'r.roadname' to 'r."ROADNAME"'
+    # 3. Longest Road Name (FIXED: "ROADNAME")
     sql_longest_name = """
         SELECT r."ROADNAME" 
         FROM roads r, lcda_polygons l 
@@ -451,7 +459,7 @@ def get_lcda_stats(lcda_name):
     res_name = cur.fetchone()
     longest_road_name = res_name[0] if res_name else "None"
 
-    # 4. 🛠️ UPDATE: Return JSON Objects {name, lat, lng} instead of string string
+    # 4. POI Stats
     sql_poi = """
         SELECT 
             p.category, 
@@ -476,11 +484,10 @@ def get_lcda_stats(lcda_name):
         "area_sqkm": round(area, 2),
         "road_count": road_count,
         "longest_road": f"{longest_road_name} ({longest_road_len}m)",
-        # Map the JSON list to 'items'
         "poi_stats": [{"label": r[0], "value": r[1], "items": r[2]} for r in poi_rows]
     })
 
 if __name__ == '__main__':
-    # Render uses the PORT environment variable
+    # Use PORT from Render env, fallback to 5000 for local
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
